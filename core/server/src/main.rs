@@ -1,11 +1,17 @@
 use axum::{
-    extract::Json,
+    extract::{Json, State},
     http::StatusCode,
     routing::{get, post},
     Router,
 };
-use chunker_core::{count_tokens, recommend_strategy, Chunker, FixedSizeChunker};
+use chunker_core::{count_tokens, recommend_strategy, Chunker, Config, FixedSizeChunker};
 use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+
+#[derive(Clone)]
+struct AppState {
+    config: Arc<Config>,
+}
 
 #[derive(Deserialize)]
 struct EstimateRequest {
@@ -24,6 +30,7 @@ struct RecommendRequest {
     text: String,
     model: Option<String>,
     tramway_url: Option<String>,
+    max_sample_tokens: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -60,11 +67,16 @@ async fn estimate(
 }
 
 async fn recommend(
+    State(state): State<AppState>,
     Json(req): Json<RecommendRequest>,
 ) -> Result<Json<RecommendResponse>, (StatusCode, String)> {
-    let model = req.model.as_deref().unwrap_or("claude-sonnet-4-6");
-    let tramway_url = req.tramway_url.as_deref();
-    let recommendation = recommend_strategy(&req.text, model, tramway_url)
+    let recommendation = recommend_strategy(
+        &req.text,
+        req.model.as_deref(),
+        req.tramway_url.as_deref(),
+        req.max_sample_tokens,
+        Some(state.config.as_ref()),
+    )
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(RecommendResponse { recommendation }))
@@ -82,11 +94,15 @@ async fn chunk(Json(req): Json<ChunkRequest>) -> Json<ChunkResponse> {
 
 #[tokio::main]
 async fn main() {
+    let state = AppState {
+        config: Arc::new(Config::load().expect("failed to load chunky-monkey config")),
+    };
     let app = Router::new()
         .route("/health", get(health))
         .route("/estimate", post(estimate))
         .route("/optimizer/recommend", post(recommend))
-        .route("/chunk", post(chunk));
+        .route("/chunk", post(chunk))
+        .with_state(state);
 
     let addr = "0.0.0.0:3000";
     println!("chunky-monkey server listening on {addr}");
