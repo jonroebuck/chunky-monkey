@@ -95,7 +95,7 @@ async fn chunk(Json(req): Json<ChunkRequest>) -> Json<ChunkResponse> {
 #[tokio::main]
 async fn main() {
     let state = AppState {
-        config: Arc::new(Config::load().unwrap()),
+        config: Arc::new(Config::load().expect("failed to load chunky-monkey config")),
     };
     let app = Router::new()
         .route("/health", get(health))

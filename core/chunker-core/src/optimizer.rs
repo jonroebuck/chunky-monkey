@@ -25,10 +25,7 @@ pub async fn recommend_strategy(
     let (model, tramway_url, cap) =
         resolve_optimizer_settings(model, tramway_url, max_sample_tokens, config);
     let client = Tramway::with_url(tramway_url);
-
-    let sample = estimator::truncate_to_token_count(text, cap)?;
-
-    let input = format!("Analyze this text sample and recommend an optimal chunking strategy:\n\n{sample}");
+    let input = build_recommendation_input(text, cap, estimator::truncate_to_token_count)?;
 
     client.respond(model, SYSTEM_PROMPT, &input).await
 }
@@ -49,9 +46,21 @@ fn resolve_optimizer_settings<'a>(
     (model, tramway_url, cap)
 }
 
+fn build_recommendation_input<F>(text: &str, cap: usize, truncate: F) -> Result<String>
+where
+    F: FnOnce(&str, usize) -> Result<String>,
+{
+    let sample = truncate(text, cap)?;
+    Ok(format!(
+        "Analyze this text sample and recommend an optimal chunking strategy:\n\n{sample}"
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::resolve_optimizer_settings;
+    use anyhow::anyhow;
+
+    use super::{build_recommendation_input, resolve_optimizer_settings};
     use crate::config::Config;
 
     #[test]
@@ -80,5 +89,13 @@ mod tests {
         assert_eq!(model, "claude-override");
         assert_eq!(tramway_url, "http://override");
         assert_eq!(max_sample_tokens, 123);
+    }
+
+    #[test]
+    fn propagates_truncation_errors() {
+        let error = build_recommendation_input("text", 1, |_, _| Err(anyhow!("truncate failed")))
+            .unwrap_err();
+
+        assert!(error.to_string().contains("truncate failed"));
     }
 }
