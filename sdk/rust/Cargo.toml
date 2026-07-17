@@ -1,0 +1,7 @@
+[package]
+name = "chunky-monkey-sdk"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+chunker-core = { path = "../../core/chunker-core" }

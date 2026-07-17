@@ -1,0 +1,7 @@
+[workspace]
+members = [
+    "core/chunker-core",
+    "core/server",
+    "sdk/rust",
+]
+resolver = "2"

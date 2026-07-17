@@ -1,0 +1,9 @@
+[project]
+name = "chunky-monkey-sdk"
+version = "0.1.0"
+description = "chunky-monkey Python SDK — placeholder"
+requires-python = ">=3.9"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

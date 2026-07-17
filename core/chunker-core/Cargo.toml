@@ -1,0 +1,9 @@
+[package]
+name = "chunker-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+tiktoken-rs = "0.5"
+tramway-rust = { git = "https://github.com/jonroebuck/tramway" }
