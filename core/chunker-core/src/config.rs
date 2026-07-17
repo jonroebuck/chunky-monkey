@@ -9,7 +9,7 @@ const CONFIG_FILE_NAME: &str = "chunky-monkey.toml";
 const CONFIG_ENV_VAR: &str = "CHUNKY_MONKEY_CONFIG";
 const CONFIG_ARG: &str = "--config";
 
-#[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
 pub struct Config {
     pub optimizer: OptimizerConfig,
 }
@@ -19,14 +19,6 @@ pub struct OptimizerConfig {
     pub model: String,
     pub max_sample_tokens: usize,
     pub tramway_url: String,
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            optimizer: OptimizerConfig::default(),
-        }
-    }
 }
 
 impl Default for OptimizerConfig {
@@ -107,7 +99,7 @@ mod tests {
     fn returns_defaults_when_no_config_exists() {
         let cwd = unique_test_dir("defaults");
 
-        let config = Config::load_from_sources(&vec!["chunky-monkey".into()], None, &cwd).unwrap();
+        let config = Config::load_from_sources(&["chunky-monkey".into()], None, &cwd).unwrap();
 
         assert_eq!(config, Config::default());
     }
@@ -120,7 +112,7 @@ mod tests {
         write_config(&cwd.join("chunky-monkey.toml"), "claude-cwd", 800, "http://cwd");
 
         let config = Config::load_from_sources(
-            &vec![
+            &[
                 "chunky-monkey".into(),
                 "--config".into(),
                 cli_path.display().to_string(),
@@ -142,7 +134,7 @@ mod tests {
         write_config(&cwd.join("chunky-monkey.toml"), "claude-cwd", 800, "http://cwd");
 
         let config = Config::load_from_sources(
-            &vec![
+            &[
                 "chunky-monkey".into(),
                 "--config".into(),
                 cwd.join("missing.toml").display().to_string(),
