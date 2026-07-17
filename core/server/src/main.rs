@@ -4,7 +4,7 @@ use axum::{
     routing::{get, post},
     Router,
 };
-use chunker_core::{count_tokens, recommend_strategy, Chunker, FixedSizeChunker};
+use chunker_core::{count_tokens, recommend_strategy, Chunker, Config, FixedSizeChunker};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize)]
@@ -24,6 +24,7 @@ struct RecommendRequest {
     text: String,
     model: Option<String>,
     tramway_url: Option<String>,
+    max_sample_tokens: Option<usize>,
 }
 
 #[derive(Serialize)]
@@ -62,9 +63,15 @@ async fn estimate(
 async fn recommend(
     Json(req): Json<RecommendRequest>,
 ) -> Result<Json<RecommendResponse>, (StatusCode, String)> {
-    let model = req.model.as_deref().unwrap_or("claude-sonnet-4-6");
-    let tramway_url = req.tramway_url.as_deref();
-    let recommendation = recommend_strategy(&req.text, model, tramway_url)
+    let config = Config::load()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+    let recommendation = recommend_strategy(
+        &req.text,
+        req.model.as_deref(),
+        req.tramway_url.as_deref(),
+        req.max_sample_tokens,
+        Some(&config),
+    )
         .await
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
     Ok(Json(RecommendResponse { recommendation }))

@@ -11,3 +11,14 @@ pub fn estimate_cost(text: &str, price_per_1k_tokens: f64) -> Result<f64> {
     let n = count_tokens(text)?;
     Ok((n as f64 / 1000.0) * price_per_1k_tokens)
 }
+
+pub fn truncate_to_token_count(text: &str, max_tokens: usize) -> Result<String> {
+    let bpe = cl100k_base()?;
+    let tokens = bpe.encode_with_special_tokens(text);
+
+    if tokens.len() <= max_tokens {
+        return Ok(text.to_string());
+    }
+
+    bpe.decode(tokens[..max_tokens].to_vec())
+}

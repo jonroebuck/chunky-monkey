@@ -1,34 +1,84 @@
 use anyhow::Result;
 use tramway_rust::Tramway;
 
+use crate::config::Config;
+use crate::estimator;
+
 const SYSTEM_PROMPT: &str = "You are an expert in text chunking for RAG (Retrieval-Augmented Generation) \
     pipelines. Analyze the given text sample and recommend an optimal chunking strategy. \
     Consider the content type (prose, code, emails, structured data, etc.) and suggest \
     appropriate chunk sizes (in characters or tokens), overlap settings, and any special \
     handling required. Be concise and specific — output a short structured recommendation.";
 
-const DEFAULT_MAX_SAMPLE_TOKENS: usize = 500;
-
 /// Calls an LLM via tramway to get a recommended chunking strategy for the given text.
 /// `model`            — model identifier forwarded to tramway (e.g. "claude-sonnet-4-6")
 /// `tramway_url`      — optional base URL for the tramway server; defaults to localhost:8080
 /// `max_sample_tokens` — caps how much of `text` gets sent, in tokens (via the estimator's
-///                       tokenizer); defaults to DEFAULT_MAX_SAMPLE_TOKENS if not provided
+///                       tokenizer); defaults to the provided config or hardcoded defaults
 pub async fn recommend_strategy(
     text: &str,
-    model: &str,
+    model: Option<&str>,
     tramway_url: Option<&str>,
     max_sample_tokens: Option<usize>,
+    config: Option<&Config>,
 ) -> Result<String> {
-    let client = match tramway_url {
-        Some(url) => Tramway::with_url(url),
-        None => Tramway::new(),
-    };
+    let (model, tramway_url, cap) =
+        resolve_optimizer_settings(model, tramway_url, max_sample_tokens, config);
+    let client = Tramway::with_url(tramway_url);
 
-    let cap = max_sample_tokens.unwrap_or(DEFAULT_MAX_SAMPLE_TOKENS);
-    let sample = estimator::truncate_to_token_count(text, cap);
+    let sample = estimator::truncate_to_token_count(text, cap)?;
 
     let input = format!("Analyze this text sample and recommend an optimal chunking strategy:\n\n{sample}");
 
     client.respond(model, SYSTEM_PROMPT, &input).await
+}
+
+fn resolve_optimizer_settings<'a>(
+    model: Option<&'a str>,
+    tramway_url: Option<&'a str>,
+    max_sample_tokens: Option<usize>,
+    config: Option<&'a Config>,
+) -> (&'a str, &'a str, usize) {
+    let model =
+        model.unwrap_or_else(|| config.map_or(Config::default_model(), |cfg| cfg.optimizer.model.as_str()));
+    let tramway_url = tramway_url
+        .unwrap_or_else(|| config.map_or(Config::default_tramway_url(), |cfg| cfg.optimizer.tramway_url.as_str()));
+    let cap = max_sample_tokens
+        .unwrap_or_else(|| config.map_or(Config::default_max_sample_tokens(), |cfg| cfg.optimizer.max_sample_tokens));
+
+    (model, tramway_url, cap)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::resolve_optimizer_settings;
+    use crate::config::Config;
+
+    #[test]
+    fn uses_config_when_overrides_are_missing() {
+        let config = Config::default();
+
+        let (model, tramway_url, max_sample_tokens) =
+            resolve_optimizer_settings(None, None, None, Some(&config));
+
+        assert_eq!(model, Config::default_model());
+        assert_eq!(tramway_url, Config::default_tramway_url());
+        assert_eq!(max_sample_tokens, Config::default_max_sample_tokens());
+    }
+
+    #[test]
+    fn explicit_overrides_take_precedence() {
+        let config = Config::default();
+
+        let (model, tramway_url, max_sample_tokens) = resolve_optimizer_settings(
+            Some("claude-override"),
+            Some("http://override"),
+            Some(123),
+            Some(&config),
+        );
+
+        assert_eq!(model, "claude-override");
+        assert_eq!(tramway_url, "http://override");
+        assert_eq!(max_sample_tokens, 123);
+    }
 }
