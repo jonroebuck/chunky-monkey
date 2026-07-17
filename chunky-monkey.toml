@@ -1,0 +1,6 @@
+# chunky-monkey.toml
+
+[optimizer]
+model = "claude-sonnet-4-6"
+max_sample_tokens = 500
+tramway_url = "http://localhost:8080"
